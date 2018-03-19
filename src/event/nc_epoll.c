@@ -265,13 +265,16 @@ event_wait(struct event_base *evb, int timeout)
                     events |= EVENT_WRITE;
                 }
 
+                // 针对每一个连接调用core_core回调函数，由core_core根据不同的事件、连接调用不同的函数
                 if (evb->cb != NULL) {
                     evb->cb(ev->data.ptr, events);
                 }
             }
+            // 返回当前的事件数、退出event_wait
             return nsd;
         }
 
+        // 当前事件数为0，直接返回0
         if (nsd == 0) {
             if (timeout == -1) {
                log_error("epoll wait on e %d with %d events and %d timeout "
@@ -285,6 +288,7 @@ event_wait(struct event_base *evb, int timeout)
         if (errno == EINTR) {
             continue;
         }
+        // 出错，返回事件数为-1
 
         log_error("epoll wait on e %d with %d events failed: %s", ep, nevent,
                   strerror(errno));
@@ -294,6 +298,7 @@ event_wait(struct event_base *evb, int timeout)
     NOT_REACHED();
 }
 
+// 状态统计事件分派器，只要有数据到达，就会调用注册的回调函数
 void
 event_loop_stats(event_stats_cb_t cb, void *arg)
 {

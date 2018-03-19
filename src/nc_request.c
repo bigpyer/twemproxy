@@ -124,6 +124,8 @@ req_put(struct msg *msg)
  * A request is done, if we received response for the given request.
  * A request vector is done if we received responses for all its
  * fragments.
+ * 对于单个元素的请求，当对应的应答返回时，请求结束
+ * 对于多个元素的请求，当对应所有元素的应答返回时，请求结束
  */
 bool
 req_done(struct conn *conn, struct msg *msg)
@@ -565,6 +567,7 @@ req_forward(struct context *ctx, struct conn *c_conn, struct msg *msg)
     ASSERT(c_conn->client && !c_conn->proxy);
 
     /* enqueue message (request) into client outq, if response is expected */
+    // 如果需要应答，消息入client conn的out_q中
     if (!msg->noreply) {
         c_conn->enqueue_outq(ctx, c_conn, msg);
     }
@@ -576,6 +579,7 @@ req_forward(struct context *ctx, struct conn *c_conn, struct msg *msg)
     key = kpos->start;
     keylen = (uint32_t)(kpos->end - kpos->start);
 
+    // 获取后端的连接，可能是新建或者从pool里获取
     s_conn = server_pool_conn(ctx, c_conn->owner, key, keylen);
     if (s_conn == NULL) {
         req_forward_error(ctx, c_conn, msg);
@@ -593,6 +597,7 @@ req_forward(struct context *ctx, struct conn *c_conn, struct msg *msg)
         }
     }
 
+    // 如果没有授权,则进行授权
     if (!conn_authenticated(s_conn)) {
         status = msg->add_auth(ctx, c_conn, s_conn);
         if (status != NC_OK) {
@@ -602,6 +607,8 @@ req_forward(struct context *ctx, struct conn *c_conn, struct msg *msg)
         }
     }
 
+    // msg出现在server conn的in_q中
+    // TODO 先触发事件?再放入消息? 
     s_conn->enqueue_inq(ctx, s_conn, msg);
 
     req_forward_stats(ctx, s_conn->owner, msg);
@@ -752,6 +759,7 @@ req_send_done(struct context *ctx, struct conn *conn, struct msg *msg)
      * noreply request instructs the server not to send any response. So,
      * enqueue message (request) in server outq, if response is expected.
      * Otherwise, free the noreply request
+     * 如果需要应答，每次发生req_send_done，这个msg就会出现在server conn的out_q中
      */
     if (!msg->noreply) {
         conn->enqueue_outq(ctx, conn, msg);

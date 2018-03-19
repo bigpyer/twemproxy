@@ -24,6 +24,7 @@ typedef void (*mbuf_copy_t)(struct mbuf *, void *);
 
 struct mbuf {
     uint32_t           magic;   /* mbuf magic (const) */
+    // single tail queue element
     STAILQ_ENTRY(mbuf) next;    /* next mbuf */
     uint8_t            *pos;    /* read marker */
     uint8_t            *last;   /* write marker */
@@ -31,6 +32,7 @@ struct mbuf {
     uint8_t            *end;    /* end of buffer (const) */
 };
 
+// 单向尾队列
 STAILQ_HEAD(mhdr, mbuf);
 
 #define MBUF_MAGIC      0xdeadbeef

@@ -510,6 +510,7 @@ struct name {                                                           \
 #define TAILQ_HEAD_INITIALIZER(head)                                    \
     { NULL, &(head).tqh_first }
 
+// 尾队列元素
 #define TAILQ_ENTRY(type)                                               \
 struct {                                                                \
     struct type *tqe_next;  /* next element */                          \

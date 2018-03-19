@@ -91,6 +91,7 @@ struct conn {
     unsigned            authenticated:1; /* authenticated? */
 };
 
+// conn tail queue header尾队列
 TAILQ_HEAD(conn_tqh, conn);
 
 struct context *conn_to_ctx(struct conn *conn);

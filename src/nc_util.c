@@ -95,6 +95,7 @@ nc_set_tcpnodelay(int sd)
     return setsockopt(sd, IPPROTO_TCP, TCP_NODELAY, &nodelay, len);
 }
 
+// 延迟关闭
 int
 nc_set_linger(int sd, int timeout)
 {
@@ -109,6 +110,7 @@ nc_set_linger(int sd, int timeout)
     return setsockopt(sd, SOL_SOCKET, SO_LINGER, &linger, len);
 }
 
+// 心跳检测
 int
 nc_set_tcpkeepalive(int sd)
 {
@@ -116,6 +118,7 @@ nc_set_tcpkeepalive(int sd)
     return setsockopt(sd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val));
 }
 
+// send buffer
 int
 nc_set_sndbuf(int sd, int size)
 {
@@ -126,6 +129,7 @@ nc_set_sndbuf(int sd, int size)
     return setsockopt(sd, SOL_SOCKET, SO_SNDBUF, &size, len);
 }
 
+// recv buffer
 int
 nc_set_rcvbuf(int sd, int size)
 {
@@ -136,6 +140,7 @@ nc_set_rcvbuf(int sd, int size)
     return setsockopt(sd, SOL_SOCKET, SO_RCVBUF, &size, len);
 }
 
+// socket error
 int
 nc_get_soerror(int sd)
 {
@@ -153,6 +158,7 @@ nc_get_soerror(int sd)
     return status;
 }
 
+// 获取send buffer信息
 int
 nc_get_sndbuf(int sd)
 {
@@ -170,6 +176,7 @@ nc_get_sndbuf(int sd)
     return size;
 }
 
+// 获取recv buffer信息
 int
 nc_get_rcvbuf(int sd)
 {

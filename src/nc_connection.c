@@ -110,6 +110,7 @@ _conn_get(void)
 {
     struct conn *conn;
 
+    // 如果free_connq不为空，则获取空闲连接，否则创建新的连接
     if (!TAILQ_EMPTY(&free_connq)) {
         ASSERT(nfree_connq > 0);
 
@@ -164,6 +165,8 @@ _conn_get(void)
     return conn;
 }
 
+// 创建client、redis/memcache server初始连接句柄并注册相应的回调函数
+// 对于client，owner为server_pool对象，对于server，owner是一个server对象
 struct conn *
 conn_get(void *owner, bool client, bool redis)
 {
@@ -255,6 +258,7 @@ conn_get_proxy(void *owner)
         return NULL;
     }
 
+    // 根据server_pool中的标示区分redis/memcache
     conn->redis = pool->redis;
 
     conn->proxy = 1;
@@ -292,6 +296,7 @@ conn_free(struct conn *conn)
     nc_free(conn);
 }
 
+// 回收连接对象到连接池
 void
 conn_put(struct conn *conn)
 {
@@ -345,6 +350,7 @@ conn_recv(struct conn *conn, void *buf, size_t size)
 
         log_debug(LOG_VERB, "recv on sd %d %zd of %zu", conn->sd, n, size);
 
+        // 如果读取到的数据小于mbuf的大小，代表没有数据可读，conn->recv_ready置0
         if (n > 0) {
             if (n < (ssize_t) size) {
                 conn->recv_ready = 0;
@@ -353,6 +359,7 @@ conn_recv(struct conn *conn, void *buf, size_t size)
             return n;
         }
 
+        // 取到0，代表消息已经读取完毕，conn->recv_ready置0
         if (n == 0) {
             conn->recv_ready = 0;
             conn->eof = 1;

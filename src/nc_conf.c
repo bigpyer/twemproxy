@@ -163,6 +163,7 @@ conf_server_each_transform(void *elem, void *data)
     nc_memcpy(&s->info, &cs->info, sizeof(cs->info));
 
     s->ns_conn_q = 0;
+    // 客户端连接队列
     TAILQ_INIT(&s->s_conn_q);
 
     s->next_retry = 0LL;

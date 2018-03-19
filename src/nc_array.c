@@ -156,6 +156,7 @@ array_top(struct array *a)
     return array_get(a, a->nelem - 1);
 }
 
+// zero copy swap
 void
 array_swap(struct array *a, struct array *b)
 {

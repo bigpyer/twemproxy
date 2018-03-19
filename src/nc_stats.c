@@ -232,6 +232,7 @@ stats_server_unmap(struct array *stats_server)
     log_debug(LOG_VVVERB, "unmap %"PRIu32" stats servers", nserver);
 }
 
+// 根据特定的server_pool初始化对应的stats_pool
 static rstatus_t
 stats_pool_init(struct stats_pool *stp, struct server_pool *sp)
 {
@@ -286,9 +287,11 @@ stats_pool_map(struct array *stats_pool, struct array *server_pool)
     rstatus_t status;
     uint32_t i, npool;
 
+    // 统计所有server_pool的数量
     npool = array_n(server_pool);
     ASSERT(npool != 0);
 
+    // 初始化npool个stats_pool结构，即每一个server_pool对应一个统计结构
     status = array_init(stats_pool, npool, sizeof(struct stats_pool));
     if (status != NC_OK) {
         return status;
@@ -298,6 +301,7 @@ stats_pool_map(struct array *stats_pool, struct array *server_pool)
         struct server_pool *sp = array_get(server_pool, i);
         struct stats_pool *stp = array_push(stats_pool);
 
+        // 根据特定的server_pool初始化对应的stats_pool
         status = stats_pool_init(stp, sp);
         if (status != NC_OK) {
             return status;
@@ -853,6 +857,7 @@ stats_listen(struct stats *st)
     return NC_OK;
 }
 
+// 启动状态统计线程
 static rstatus_t
 stats_start_aggregator(struct stats *st)
 {
@@ -862,11 +867,13 @@ stats_start_aggregator(struct stats *st)
         return NC_OK;
     }
 
+    // 创建监听端口
     status = stats_listen(st);
     if (status != NC_OK) {
         return status;
     }
 
+    // 创建状态监控线程、启动事件分派器
     status = pthread_create(&st->tid, NULL, stats_loop, st);
     if (status < 0) {
         log_error("stats aggregator create failed: %s", strerror(status));
@@ -876,6 +883,7 @@ stats_start_aggregator(struct stats *st)
     return NC_OK;
 }
 
+// 启动状态统计线程
 static void
 stats_stop_aggregator(struct stats *st)
 {
@@ -978,6 +986,7 @@ stats_destroy(struct stats *st)
     nc_free(st);
 }
 
+// 将current状态信息换入shadow中
 void
 stats_swap(struct stats *st)
 {
@@ -1005,6 +1014,7 @@ stats_swap(struct stats *st)
     /*
      * Reset current (a) stats before giving it back to generator to keep
      * stats addition idempotent
+     * 服务上下文作为多租户服务池的owner?
      */
     stats_pool_reset(&st->current);
     st->updated = 0;

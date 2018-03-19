@@ -295,6 +295,7 @@ nc_set_default_options(struct instance *nci)
     }
     nci->hostname[NC_MAXHOSTNAMELEN - 1] = '\0';
 
+    // byte, default 16384bytes
     nci->mbuf_chunk_size = NC_MBUF_SIZE;
 
     nci->pid = (pid_t)-1;
@@ -339,7 +340,7 @@ nc_get_options(int argc, char **argv, struct instance *nci)
             show_version = 1;
             break;
 
-        case 'v':
+        case 'v': // 日志级别
             value = nc_atoi(optarg, strlen(optarg));
             if (value < 0) {
                 log_stderr("nutcracker: option -v requires a number");
@@ -362,7 +363,7 @@ nc_get_options(int argc, char **argv, struct instance *nci)
                 log_stderr("nutcracker: option -s requires a number");
                 return NC_ERROR;
             }
-            if (!nc_valid_port(value)) {
+            if (!nc_valid_port(value)) {// 验证端口是否合法
                 log_stderr("nutcracker: option -s value %d is not a valid "
                            "port", value);
                 return NC_ERROR;
@@ -371,7 +372,7 @@ nc_get_options(int argc, char **argv, struct instance *nci)
             nci->stats_port = (uint16_t)value;
             break;
 
-        case 'i':
+        case 'i': // 状态采集间隔时间
             value = nc_atoi(optarg, strlen(optarg));
             if (value < 0) {
                 log_stderr("nutcracker: option -i requires a number");
@@ -389,7 +390,7 @@ nc_get_options(int argc, char **argv, struct instance *nci)
             nci->pid_filename = optarg;
             break;
 
-        case 'm':
+        case 'm': // 单个mbuf的大小，单位: byte 最小:512 最大:16777216 默认:16384
             value = nc_atoi(optarg, strlen(optarg));
             if (value <= 0) {
                 log_stderr("nutcracker: option -m requires a non-zero number");
@@ -481,13 +482,16 @@ nc_pre_run(struct instance *nci)
         }
     }
 
+    // 进程信息
     nci->pid = getpid();
 
+    // 信号处理器
     status = signal_init();
     if (status != NC_OK) {
         return status;
     }
 
+    // 创建进程文件
     if (nci->pid_filename) {
         status = nc_create_pidfile(nci);
         if (status != NC_OK) {
@@ -520,12 +524,14 @@ nc_run(struct instance *nci)
     rstatus_t status;
     struct context *ctx;
 
+    // 初始化事件分派器，包括创建全局上下文、初始化配置、初始化server pool、初始化状态统计器、创建事件循环器、预建立连接池、初始化server pool对应的proxy服务
     ctx = core_start(nci);
     if (ctx == NULL) {
         return;
     }
 
     /* run rabbit run */
+    // 启动事件分派器,当返回的status不为0，即事件分派器出错，停止服务
     for (;;) {
         status = core_loop(ctx);
         if (status != NC_OK) {
@@ -539,9 +545,12 @@ nc_run(struct instance *nci)
 int
 main(int argc, char **argv)
 {
+    // 全局状态标识
     rstatus_t status;
+    // 全局实例
     struct instance nci;
 
+    // 加载默认配置
     nc_set_default_options(&nci);
 
     status = nc_get_options(argc, argv, &nci);
@@ -556,6 +565,7 @@ main(int argc, char **argv)
             nc_show_usage();
         }
 
+        // 显示系统配置状态信息
         if (describe_stats) {
             stats_describe();
         }
@@ -570,14 +580,17 @@ main(int argc, char **argv)
         exit(0);
     }
 
+    // 运行前初始化系统信息
     status = nc_pre_run(&nci);
     if (status != NC_OK) {
         nc_post_run(&nci);
         exit(1);
     }
 
+    // 系统运行
     nc_run(&nci);
 
+    // 退出运行
     nc_post_run(&nci);
 
     exit(1);

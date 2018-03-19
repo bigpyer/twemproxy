@@ -39,6 +39,7 @@ server_resolve(struct server *server, struct conn *conn)
     conn->addr = (struct sockaddr *)&server->info.addr;
 }
 
+// real server connection的owner是其对应的owner
 void
 server_ref(struct conn *conn, void *owner)
 {
@@ -183,15 +184,20 @@ server_deinit(struct array *server)
     array_deinit(server);
 }
 
+// 这里只是简单的转了一下, 如果一个conn正在使用, 那么它也会返回, 也就是说一个server conn会同时被 两个client conn使用.
+// TODO 如何保证server收到的应答和请求能一一对应呢?
 struct conn *
 server_conn(struct server *server)
 {
     struct server_pool *pool;
     struct conn *conn;
 
+    // 获取server对应的server pool
     pool = server->owner;
 
     /*
+     * 如果server当前连接数小于设定的连接数(默认为1)，则新建连接
+     * 否则从连接队列里面取用空闲的连接
      * FIXME: handle multiple server connections per server and do load
      * balancing on it. Support multiple algorithms for
      * 'server_connections:' > 0 key
@@ -226,11 +232,13 @@ server_each_preconnect(void *elem, void *data)
     server = elem;
     pool = server->owner;
 
+    // 创建初始连接句柄
     conn = server_conn(server);
     if (conn == NULL) {
         return NC_ENOMEM;
     }
 
+    // 创建网络连接
     status = server_connect(pool->ctx, server, conn);
     if (status != NC_OK) {
         log_warn("connect to server '%.*s' failed, ignored: %s",
@@ -462,6 +470,8 @@ server_close(struct context *ctx, struct conn *conn)
     conn_put(conn);
 }
 
+// 如果已经建立网络连接，则直接返回
+// 如果当前网络连接未建立，则创建网络连接
 rstatus_t
 server_connect(struct context *ctx, struct server *server, struct conn *conn)
 {
@@ -483,6 +493,7 @@ server_connect(struct context *ctx, struct server *server, struct conn *conn)
     log_debug(LOG_VVERB, "connect to server '%.*s'", server->pname.len,
               server->pname.data);
 
+    // 创建套接字
     conn->sd = socket(conn->family, SOCK_STREAM, 0);
     if (conn->sd < 0) {
         log_error("socket for server '%.*s' failed: %s", server->pname.len,
@@ -491,6 +502,7 @@ server_connect(struct context *ctx, struct server *server, struct conn *conn)
         goto error;
     }
 
+    // 设置非阻塞
     status = nc_set_nonblocking(conn->sd);
     if (status != NC_OK) {
         log_error("set nonblock on s %d for server '%.*s' failed: %s",
@@ -499,6 +511,8 @@ server_connect(struct context *ctx, struct server *server, struct conn *conn)
         goto error;
     }
 
+    // tcpnodelay
+    // 设置tcpnodelay
     if (server->pname.data[0] != '/') {
         status = nc_set_tcpnodelay(conn->sd);
         if (status != NC_OK) {
@@ -508,6 +522,7 @@ server_connect(struct context *ctx, struct server *server, struct conn *conn)
         }
     }
 
+    // 将当前连接加入事件分派器，参与事件分派
     status = event_add_conn(ctx->evb, conn);
     if (status != NC_OK) {
         log_error("event add conn s %d for server '%.*s' failed: %s",
@@ -518,6 +533,7 @@ server_connect(struct context *ctx, struct server *server, struct conn *conn)
 
     ASSERT(!conn->connecting && !conn->connected);
 
+    // 连接
     status = connect(conn->sd, conn->addr, conn->addrlen);
     if (status != NC_OK) {
         if (errno == EINPROGRESS) {
@@ -670,6 +686,10 @@ server_pool_idx(struct server_pool *pool, uint8_t *key, uint32_t keylen)
         }
     }
 
+    /*
+     * ketama: 一致性hash算法，根据server构造hash ring，为每个节点分配hash范围，它的优点是一个节点down后，整个集群re-hash，有部分key-range会跟之前的key-range重合，所以它只适合做单纯的cache
+     * modula: 根据key做hash取模，根据结构分配到对应的server，这种方式如果集群做rehash，所有的key都会目标错乱
+     * */
     switch (pool->dist_type) {
     case DIST_KETAMA:
         hash = server_pool_hash(pool, key, keylen);
@@ -708,6 +728,8 @@ server_pool_server(struct server_pool *pool, uint8_t *key, uint32_t keylen)
     return server;
 }
 
+// 获取server group中的某个server连接池中的可用连接
+// 因为不同的server的proxy监听在不同的端口，所以比较容易获取目的server_pool
 struct conn *
 server_pool_conn(struct context *ctx, struct server_pool *pool, uint8_t *key,
                  uint32_t keylen)
@@ -733,6 +755,7 @@ server_pool_conn(struct context *ctx, struct server_pool *pool, uint8_t *key,
         return NULL;
     }
 
+    /* return connected connection or create net connection */
     status = server_connect(ctx, server, conn);
     if (status != NC_OK) {
         server_close(ctx, conn);
@@ -742,16 +765,19 @@ server_pool_conn(struct context *ctx, struct server_pool *pool, uint8_t *key,
     return conn;
 }
 
+// 特定的server pool中的每一个real server预先连接连接
 static rstatus_t
 server_pool_each_preconnect(void *elem, void *data)
 {
     rstatus_t status;
     struct server_pool *sp = elem;
 
+    // 如果不需要预先连接，则不预先建立连接
     if (!sp->preconnect) {
         return NC_OK;
     }
 
+    // 将配置的多租户服务池转化为处理请求的多租户服务池
     status = array_each(&sp->server, server_each_preconnect, NULL);
     if (status != NC_OK) {
         return status;
@@ -760,6 +786,7 @@ server_pool_each_preconnect(void *elem, void *data)
     return NC_OK;
 }
 
+// 预先建立连接
 rstatus_t
 server_pool_preconnect(struct context *ctx)
 {
@@ -845,6 +872,7 @@ server_pool_each_run(void *elem, void *data)
     return server_pool_run(elem);
 }
 
+// 初始化server pool
 rstatus_t
 server_pool_init(struct array *server_pool, struct array *conf_pool,
                  struct context *ctx)
@@ -852,16 +880,19 @@ server_pool_init(struct array *server_pool, struct array *conf_pool,
     rstatus_t status;
     uint32_t npool;
 
+    // 获取conf pool大小
     npool = array_n(conf_pool);
     ASSERT(npool != 0);
     ASSERT(array_n(server_pool) == 0);
 
+    // 初始化npool个server pool元素
     status = array_init(server_pool, npool, sizeof(struct server_pool));
     if (status != NC_OK) {
         return status;
     }
 
     /* transform conf pool to server pool */
+    // 将多租户服务池配置转化为处理请求的多租户服务池
     status = array_each(conf_pool, conf_pool_each_transform, server_pool);
     if (status != NC_OK) {
         server_pool_deinit(server_pool);
@@ -870,6 +901,7 @@ server_pool_init(struct array *server_pool, struct array *conf_pool,
     ASSERT(array_n(server_pool) == npool);
 
     /* set ctx as the server pool owner */
+    // 设置server owner context为ctx
     status = array_each(server_pool, server_pool_each_set_owner, ctx);
     if (status != NC_OK) {
         server_pool_deinit(server_pool);
@@ -877,6 +909,7 @@ server_pool_init(struct array *server_pool, struct array *conf_pool,
     }
 
     /* compute max server connections */
+    // 计算最大连接数
     ctx->max_nsconn = 0;
     status = array_each(server_pool, server_pool_each_calc_connections, ctx);
     if (status != NC_OK) {

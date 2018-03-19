@@ -118,12 +118,13 @@ struct event_base;
 #include <nc_connection.h>
 #include <nc_server.h>
 
+// 一个twemproxy只有一个全局上下文
 struct context {
     uint32_t           id;          /* unique context id */
     struct conf        *cf;         /* configuration */
     struct stats       *stats;      /* stats */
 
-    struct array       pool;        /* server_pool[] */
+    struct array       pool;        /* server_pool[] server_pool数组 */
     struct event_base  *evb;        /* event base */
     int                max_timeout; /* max timeout in msec */
     int                timeout;     /* timeout in msec */
@@ -134,6 +135,7 @@ struct context {
 };
 
 
+// 一个twemproxy只有一个全局实例
 struct instance {
     struct context  *ctx;                        /* active context */
     int             log_level;                   /* log level */

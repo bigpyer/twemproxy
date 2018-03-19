@@ -32,6 +32,7 @@ _mbuf_get(void)
     struct mbuf *mbuf;
     uint8_t *buf;
 
+    // 如果mbuf单向尾队列不为空，则从队列中获取一个可用mbuf,然后结束
     if (!STAILQ_EMPTY(&free_mbufq)) {
         ASSERT(nfree_mbufq > 0);
 
@@ -43,6 +44,7 @@ _mbuf_get(void)
         goto done;
     }
 
+    // free mbuf q为空，重新分配一个新的mbuf,大小为mbuf_chunk_size
     buf = nc_alloc(mbuf_chunk_size);
     if (buf == NULL) {
         return NULL;
@@ -78,6 +80,7 @@ done:
 struct mbuf *
 mbuf_get(void)
 {
+    // 获取一个初始化的mbuf
     struct mbuf *mbuf;
     uint8_t *buf;
 

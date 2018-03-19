@@ -19,6 +19,7 @@
 #include <nc_server.h>
 #include <nc_client.h>
 
+// client、server pool关联
 void
 client_ref(struct conn *conn, void *owner)
 {

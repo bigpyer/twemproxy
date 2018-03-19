@@ -253,6 +253,7 @@ rsp_forward(struct context *ctx, struct conn *s_conn, struct msg *msg)
     pmsg->done = 1;
 
     /* establish msg <-> pmsg (response <-> request) link */
+    // 建立请求-应答消息的映射关系
     pmsg->peer = msg;
     msg->peer = pmsg;
 
@@ -261,6 +262,7 @@ rsp_forward(struct context *ctx, struct conn *s_conn, struct msg *msg)
     c_conn = pmsg->owner;
     ASSERT(c_conn->client && !c_conn->proxy);
 
+    // 检查单个请求/批量请求是否处理完成
     if (req_done(c_conn, TAILQ_FIRST(&c_conn->omsg_q))) {
         status = event_add_out(ctx->evb, c_conn);
         if (status != NC_OK) {
@@ -268,6 +270,7 @@ rsp_forward(struct context *ctx, struct conn *s_conn, struct msg *msg)
         }
     }
 
+    // 应答计数
     rsp_forward_stats(ctx, s_conn->owner, msg, msgsize);
 }
 

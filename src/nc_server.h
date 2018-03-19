@@ -28,6 +28,11 @@
  *
  * Each server is the owner of one or more server connections. server
  * itself is owned by the server_pool.
+ * server_pool 是多个servers的集合，每一个server_pool对应一个名字空间
+ * proxy及其对应的client connections的owner是对应名字空间的server_pool对象
+ * server_pool自己的owner是当前的上下文，即context
+ * 每一个real server connection的owner是对应的server对象
+ * 每一个real server的owner是其对应的server_pool对象
  *
  *  +-------------+
  *  |             |<---------------------+
@@ -77,8 +82,9 @@ struct server {
     uint32_t           weight;        /* weight */
     struct sockinfo    info;          /* server socket info */
 
-    uint32_t           ns_conn_q;     /* # server connection */
-    struct conn_tqh    s_conn_q;      /* server connection q */
+    uint32_t           ns_conn_q;     /* # server connection 后端服务连接数 */
+    // server connection tail queue header
+    struct conn_tqh    s_conn_q;      /* server connection q 后端服务连接队列 */
 
     int64_t            next_retry;    /* next retry time in usec */
     uint32_t           failure_count; /* # consecutive failures */
@@ -90,9 +96,10 @@ struct server_pool {
 
     struct conn        *p_conn;              /* proxy connection (listener) */
     uint32_t           nc_conn_q;            /* # client connection */
+    // client connection tail queue header
     struct conn_tqh    c_conn_q;             /* client connection q */
 
-    struct array       server;               /* server[] */
+    struct array       server;               /* server[] real server 列表 */
     uint32_t           ncontinuum;           /* # continuum points */
     uint32_t           nserver_continuum;    /* # servers - live and dead on continuum (const) */
     struct continuum   *continuum;           /* continuum */

@@ -24,6 +24,15 @@
 #define rbtree_is_black(_node)      (!rbtree_is_red(_node))
 #define rbtree_copy_color(_n1, _n2) ((_n1)->color = (_n2)->color)
 
+/*
+ * 红黑树虽然本质上是一棵二叉查找树，但它在二叉查找树的基础上增加了着色和相关的性质使得红黑树相对平衡，从而保证了红黑树的查找、插入、删除的时间复杂度最坏为O(log n)。
+ * 每个结点要么是红的要么是黑的。
+ * 根结点是黑的。
+ * 每个叶结点（叶结点即指树尾端NIL指针或NULL结点）都是黑的。
+ * 如果一个结点是红的，那么它的两个儿子都是黑的。
+ * 对于任意结点而言，其到叶结点树尾端NIL指针的每条路径都包含相同数目的黑结点。
+ */
+
 struct rbnode {
     struct rbnode *left;     /* left link */
     struct rbnode *right;    /* right link */

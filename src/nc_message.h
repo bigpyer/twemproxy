@@ -200,13 +200,16 @@ struct keypos {
 };
 
 struct msg {
+    // client tail queue element
     TAILQ_ENTRY(msg)     c_tqe;           /* link in client q */
+    // server tail queue element
     TAILQ_ENTRY(msg)     s_tqe;           /* link in server q */
+    // msg tail queue element
     TAILQ_ENTRY(msg)     m_tqe;           /* link in send q / free q */
 
     uint64_t             id;              /* message id */
     struct msg           *peer;           /* message peer */
-    struct conn          *owner;          /* message owner - client | server */
+    struct conn          *owner;          /* message owner - client | server message owner是具体的client或者server连接 */
 
     struct rbnode        tmo_rbe;         /* entry in rbtree */
 
@@ -262,6 +265,7 @@ struct msg {
     unsigned             redis:1;         /* redis? */
 };
 
+// msg tail queue header
 TAILQ_HEAD(msg_tqh, msg);
 
 struct msg *msg_tmo_min(void);

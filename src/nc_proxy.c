@@ -22,6 +22,7 @@
 #include <nc_server.h>
 #include <nc_proxy.h>
 
+// 关联proxy及对应的server pool
 void
 proxy_ref(struct conn *conn, void *owner)
 {
@@ -181,6 +182,7 @@ proxy_listen(struct context *ctx, struct conn *p)
         return NC_ERROR;
     }
 
+    // 关闭写端, proxy没有写事件, 所以关闭
     status = event_del_out(ctx->evb, p);
     if (status < 0) {
         log_error("event del out p %d on addr '%.*s' failed: %s",
@@ -192,6 +194,7 @@ proxy_listen(struct context *ctx, struct conn *p)
     return NC_OK;
 }
 
+// 初始化每一个proxy server
 rstatus_t
 proxy_each_init(void *elem, void *data)
 {
@@ -219,6 +222,7 @@ proxy_each_init(void *elem, void *data)
     return NC_OK;
 }
 
+// 创建所有proxy server pool中的proxy
 rstatus_t
 proxy_init(struct context *ctx)
 {
@@ -336,6 +340,7 @@ proxy_accept(struct context *ctx, struct conn *p)
         return NC_OK;
     }
 
+    // 获取客户端连接,客户端对象owner同proxyowner
     c = conn_get(p->owner, true, p->redis);
     if (c == NULL) {
         log_error("get conn for c %d from p %d failed: %s", sd, p->sd,
@@ -396,8 +401,10 @@ proxy_recv(struct context *ctx, struct conn *conn)
     ASSERT(conn->proxy && !conn->client);
     ASSERT(conn->recv_active);
 
+    // 当accept出错时recv_ready=0
     conn->recv_ready = 1;
     do {
+        // 接收客户端连接
         status = proxy_accept(ctx, conn);
         if (status != NC_OK) {
             return status;

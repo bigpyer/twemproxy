@@ -148,6 +148,7 @@ msg_tmo_min(void)
     return msg_from_rbe(node);
 }
 
+// timeout red black tree
 void
 msg_tmo_insert(struct msg *msg, struct conn *conn)
 {
@@ -195,6 +196,7 @@ _msg_get(void)
 {
     struct msg *msg;
 
+    // 如果free_msgq不为空，取出一个msg，否则创建一个msg
     if (!TAILQ_EMPTY(&free_msgq)) {
         ASSERT(nfree_msgq > 0);
 
@@ -283,6 +285,7 @@ msg_get(struct conn *conn, bool request, bool redis)
         return NULL;
     }
 
+    // 请求时收到的消息其owner是client connection，应答时收到的消息其owner是server connection
     msg->owner = conn;
     msg->request = request ? 1 : 0;
     msg->redis = redis ? 1 : 0;
@@ -365,6 +368,7 @@ msg_free(struct msg *msg)
     nc_free(msg);
 }
 
+// msg 入free_msgq
 void
 msg_put(struct msg *msg)
 {
@@ -668,6 +672,7 @@ msg_recv_chain(struct context *ctx, struct conn *conn, struct msg *msg)
     size_t msize;
     ssize_t n;
 
+    // 从mbuf pool中申请mbuf
     mbuf = STAILQ_LAST(&msg->mhdr, mbuf, next);
     if (mbuf == NULL || mbuf_full(mbuf)) {
         mbuf = mbuf_get();
@@ -681,6 +686,7 @@ msg_recv_chain(struct context *ctx, struct conn *conn, struct msg *msg)
 
     msize = mbuf_size(mbuf);
 
+    // 从网络套接字接收消息,一次最多接收msize大小的消息，其余的消息，循环调用msg_recv_chain继续接收
     n = conn_recv(conn, mbuf->last, msize);
     if (n < 0) {
         if (n == NC_EAGAIN) {
@@ -693,6 +699,7 @@ msg_recv_chain(struct context *ctx, struct conn *conn, struct msg *msg)
     mbuf->last += n;
     msg->mlen += (uint32_t)n;
 
+    // 解析mbuf及上次剩余的所有的请求报文
     for (;;) {
         status = msg_parse(ctx, conn, msg);
         if (status != NC_OK) {
@@ -720,6 +727,7 @@ msg_recv(struct context *ctx, struct conn *conn)
 
     ASSERT(conn->recv_active);
 
+    // 一次读取所有到达的请求数据，可能很多，比如pipeline 100w数据
     conn->recv_ready = 1;
     do {
         msg = conn->recv_next(ctx, conn, true);

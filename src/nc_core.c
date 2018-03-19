@@ -45,12 +45,14 @@ core_calc_connections(struct context *ctx)
     return NC_OK;
 }
 
+// 创建全局上下文
 static struct context *
 core_ctx_create(struct instance *nci)
 {
     rstatus_t status;
     struct context *ctx;
 
+    // ctx内存初始化
     ctx = nc_alloc(sizeof(*ctx));
     if (ctx == NULL) {
         return NULL;
@@ -59,7 +61,9 @@ core_ctx_create(struct instance *nci)
     ctx->cf = NULL;
     ctx->stats = NULL;
     ctx->evb = NULL;
+    // init server pool
     array_null(&ctx->pool);
+    // TODO 超时时间和stats_interval?
     ctx->max_timeout = nci->stats_interval;
     ctx->timeout = ctx->max_timeout;
     ctx->max_nfd = 0;
@@ -74,6 +78,7 @@ core_ctx_create(struct instance *nci)
     }
 
     /* initialize server pool from configuration */
+    // 根据配置初始化server pool
     status = server_pool_init(&ctx->pool, &ctx->cf->pool, ctx);
     if (status != NC_OK) {
         conf_destroy(ctx->cf);
@@ -104,6 +109,7 @@ core_ctx_create(struct instance *nci)
     }
 
     /* initialize event handling for client, proxy and server */
+    // 初始化client、proxy、server等的事件回调函数、创建事件句柄
     ctx->evb = event_base_create(EVENT_SIZE, &core_core);
     if (ctx->evb == NULL) {
         stats_destroy(ctx->stats);
@@ -114,6 +120,7 @@ core_ctx_create(struct instance *nci)
     }
 
     /* preconnect? servers in server pool */
+    // 是否需要预建立连接池,如果是，则每个server pool的每个real server都建立指定数量的连接池，否则直接返回ok
     status = server_pool_preconnect(ctx);
     if (status != NC_OK) {
         server_pool_disconnect(ctx);
@@ -180,12 +187,17 @@ core_start(struct instance *nci)
 void
 core_stop(struct context *ctx)
 {
+    // 清空连接队列
     conn_deinit();
+    // 清空消息队列
     msg_deinit();
+    // 销毁mbuf池子
     mbuf_deinit();
+    // 销毁请求上下文
     core_ctx_destroy(ctx);
 }
 
+// 根据不同的连接，调用相应的recv函数
 static rstatus_t
 core_recv(struct context *ctx, struct conn *conn)
 {
@@ -201,6 +213,7 @@ core_recv(struct context *ctx, struct conn *conn)
     return status;
 }
 
+// 根据不同的连接，调用相应的send函数
 static rstatus_t
 core_send(struct context *ctx, struct conn *conn)
 {
@@ -290,6 +303,7 @@ core_timeout(struct context *ctx)
         conn = msg->tmo_rbe.data;
         then = msg->tmo_rbe.key;
 
+        // TODO 最小的消息都没有超时，则没有超时的请求，直接返回
         now = nc_msec_now();
         if (now < then) {
             int delta = (int)(then - now);
@@ -299,13 +313,16 @@ core_timeout(struct context *ctx)
 
         log_debug(LOG_INFO, "req %"PRIu64" on s %d timedout", msg->id, conn->sd);
 
+        // 删除rbtree中的超时信息
         msg_tmo_delete(msg);
         conn->err = ETIMEDOUT;
 
+        // 关闭连接
         core_close(ctx, conn);
     }
 }
 
+// 所有的事件都会调用回调函数core_core，由core_core根据不同的事件调用不同的recv、send函数，然后由不同的recv、send函数指向，调用不同的recv、send函数
 rstatus_t
 core_core(void *arg, uint32_t events)
 {
@@ -318,6 +335,7 @@ core_core(void *arg, uint32_t events)
         return NC_OK;
     }
 
+    // 获取connection对应的context
     ctx = conn_to_ctx(conn);
 
     log_debug(LOG_VVERB, "event %04"PRIX32" on %c %d", events,
@@ -351,18 +369,22 @@ core_core(void *arg, uint32_t events)
     return NC_OK;
 }
 
+// 事件分派器
 rstatus_t
 core_loop(struct context *ctx)
 {
     int nsd;
 
+    // 等待IO事件，如果事件数为-1，返回错误
     nsd = event_wait(ctx->evb, ctx->timeout);
     if (nsd < 0) {
         return nsd;
     }
 
+    // 处理已经超时的请求，所有的请求都会记录到一个rbtree中
     core_timeout(ctx);
 
+    // 当前状态信息换入shadow中，并重置当前状态信息
     stats_swap(ctx->stats);
 
     return NC_OK;
